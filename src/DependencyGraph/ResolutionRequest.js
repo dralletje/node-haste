@@ -16,17 +16,11 @@ const path = require('../fastpath');
 const realPath = require('path');
 const isAbsolutePath = require('absolute-path');
 const getAssetDataFromName = require('../lib/getAssetDataFromName');
-const throat = require('throat')(Promise);
-
-const MAX_CONCURRENT_FILE_READS = 32;
-const getDependencies = throat(
-  MAX_CONCURRENT_FILE_READS,
-  (module, transformOptions) => module.getDependencies(transformOptions)
-);
 
 class ResolutionRequest {
   constructor({
     platform,
+    platforms,
     preferNativePlatform,
     entryPath,
     hasteMap,
@@ -35,8 +29,10 @@ class ResolutionRequest {
     moduleCache,
     fastfs,
     shouldThrowOnUnresolvedErrors,
+    extraNodeModules,
   }) {
     this._platform = platform;
+    this._platforms = platforms;
     this._preferNativePlatform = preferNativePlatform;
     this._entryPath = entryPath;
     this._hasteMap = hasteMap;
@@ -45,6 +41,7 @@ class ResolutionRequest {
     this._moduleCache = moduleCache;
     this._fastfs = fastfs;
     this._shouldThrowOnUnresolvedErrors = shouldThrowOnUnresolvedErrors;
+    this._extraNodeModules = extraNodeModules;
     this._resetResolutionCache();
   }
 
@@ -127,7 +124,7 @@ class ResolutionRequest {
       let finishedModules = 0;
 
       const resolveDependencies = module =>
-        getDependencies(module, transformOptions)
+        module.getDependencies(transformOptions)
           .then(dependencyNames =>
             Promise.all(
               dependencyNames.map(name => this.resolveDependency(module, name))
@@ -353,6 +350,15 @@ class ResolutionRequest {
             );
           }
 
+          if (this._extraNodeModules) {
+            const bits = toModuleName.split('/');
+            const packageName = bits[0];
+            if (this._extraNodeModules[packageName]) {
+              bits[0] = this._extraNodeModules[packageName];
+              searchQueue.push(path.join.apply(path, bits));
+            }
+          }
+
           let p = Promise.reject(new UnableToResolveError(
             fromModule,
             toModuleName,
@@ -385,7 +391,7 @@ class ResolutionRequest {
           );
         }
 
-        const {name, type} = getAssetDataFromName(potentialModulePath);
+        const {name, type} = getAssetDataFromName(potentialModulePath, this._platforms);
 
         let pattern = '^' + name + '(@[\\d\\.]+x)?';
         if (this._platform != null) {

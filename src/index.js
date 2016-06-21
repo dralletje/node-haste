@@ -56,6 +56,7 @@ class DependencyGraph {
     enableAssetMap,
     assetDependencies,
     moduleOptions,
+    extraNodeModules,
   }) {
     this._opts = {
       activity: activity || defaultActivity,
@@ -65,7 +66,7 @@ class DependencyGraph {
       assetRoots_DEPRECATED: assetRoots_DEPRECATED || [],
       assetExts: assetExts || [],
       providesModuleNodeModules,
-      platforms: platforms || [],
+      platforms: new Set(platforms || []),
       preferNativePlatform: preferNativePlatform || false,
       extensions: extensions || ['js', 'json'],
       mocksPattern,
@@ -76,6 +77,7 @@ class DependencyGraph {
       moduleOptions: moduleOptions || {
         cacheTransformResults: true,
       },
+      extraNodeModules,
     };
     this._cache = cache;
     this._assetDependencies = assetDependencies;
@@ -120,7 +122,7 @@ class DependencyGraph {
       depGraphHelpers: this._helpers,
       assetDependencies: this._assetDependencies,
       moduleOptions: this._opts.moduleOptions,
-    });
+    }, this._opts.platfomrs);
 
     this._hasteMap = new HasteMap({
       fastfs: this._fastfs,
@@ -128,6 +130,7 @@ class DependencyGraph {
       moduleCache: this._moduleCache,
       preferNativePlatform: this._opts.preferNativePlatform,
       helpers: this._helpers,
+      platforms: this._opts.platforms,
     });
 
     this._deprecatedAssetMap = new DeprecatedAssetMap({
@@ -139,6 +142,7 @@ class DependencyGraph {
       assetExts: this._opts.assetExts,
       activity: this._opts.activity,
       enabled: this._opts.enableAssetMap,
+      platforms: this._opts.platforms,
     });
 
     this._loading = Promise.all([
@@ -206,6 +210,7 @@ class DependencyGraph {
       const absPath = this._getAbsolutePath(entryPath);
       const req = new ResolutionRequest({
         platform,
+        platforms: this._opts.platforms,
         preferNativePlatform: this._opts.preferNativePlatform,
         entryPath: absPath,
         deprecatedAssetMap: this._deprecatedAssetMap,
@@ -214,6 +219,7 @@ class DependencyGraph {
         moduleCache: this._moduleCache,
         fastfs: this._fastfs,
         shouldThrowOnUnresolvedErrors: this._opts.shouldThrowOnUnresolvedErrors,
+        extraNodeModules: this._opts.extraNodeModules,
       });
 
       const response = new ResolutionResponse({transformOptions});
@@ -234,11 +240,8 @@ class DependencyGraph {
 
   _getRequestPlatform(entryPath, platform) {
     if (platform == null) {
-      platform = getPlatformExtension(entryPath);
-      if (platform == null || this._opts.platforms.indexOf(platform) === -1) {
-        platform = null;
-      }
-    } else if (this._opts.platforms.indexOf(platform) === -1) {
+      platform = getPlatformExtension(entryPath, this._opts.platforms);
+    } else if (!this._opts.platforms.has(platform)) {
       throw new Error('Unrecognized platform: ' + platform);
     }
     return platform;

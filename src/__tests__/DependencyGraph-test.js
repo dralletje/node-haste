@@ -1274,7 +1274,7 @@ describe('DependencyGraph', function() {
           `  Duplicate module name: index\n` +
           `  Paths: /root/b.js collides with /root/index.js\n\n` +
           `This error is caused by a @providesModule declaration ` +
-          `with the same name accross two different files.`
+          `with the same name across two different files.`
         );
         expect(err.type).toEqual('DependencyGraphError');
       });
@@ -2338,6 +2338,160 @@ describe('DependencyGraph', function() {
           ]);
       });
     });
+
+    pit('should fall back to `extraNodeModules`', () => {
+      const root = '/root';
+      fs.__setMockFilesystem({
+        [root.slice(1)]: {
+          'index.js': 'require("./foo")',
+          'foo': {
+            'index.js': 'require("bar")',
+          },
+          'provides-bar': {
+            'package.json': '{"main": "lib/bar.js"}',
+            'lib': {
+              'bar.js': '',
+            },
+          },
+        },
+      });
+
+      var dgraph = new DependencyGraph({
+        ...defaults,
+        roots: [root],
+        extraNodeModules: {
+          'bar': root + '/provides-bar',
+        },
+      });
+
+      return getOrderedDependenciesAsJSON(dgraph, '/root/index.js').then(deps => {
+        expect(deps)
+          .toEqual([
+            {
+              id: '/root/index.js',
+              path: '/root/index.js',
+              dependencies: ['./foo'],
+              isAsset: false,
+              isAsset_DEPRECATED: false,
+              isJSON: false,
+              isPolyfill: false,
+              resolution: undefined,
+            },
+            {
+              id: '/root/foo/index.js',
+              path: '/root/foo/index.js',
+              dependencies: ['bar'],
+              isAsset: false,
+              isAsset_DEPRECATED: false,
+              isJSON: false,
+              isPolyfill: false,
+              resolution: undefined,
+            },
+            {
+              id: '/root/provides-bar/lib/bar.js',
+              path: '/root/provides-bar/lib/bar.js',
+              dependencies: [],
+              isAsset: false,
+              isAsset_DEPRECATED: false,
+              isJSON: false,
+              isPolyfill: false,
+              resolution: undefined,
+            },
+          ]);
+      });
+    });
+
+    pit('should only use `extraNodeModules` after checking all possible filesystem locations', () => {
+      const root = '/root';
+      fs.__setMockFilesystem({
+        [root.slice(1)]: {
+          'index.js': 'require("bar")',
+          'node_modules': { 'bar.js': '' },
+          'provides-bar': { 'index.js': '' },
+        },
+      });
+
+      var dgraph = new DependencyGraph({
+        ...defaults,
+        roots: [root],
+        extraNodeModules: {
+          'bar': root + '/provides-bar',
+        },
+      });
+
+      return getOrderedDependenciesAsJSON(dgraph, '/root/index.js').then(deps => {
+        expect(deps)
+          .toEqual([
+            {
+              id: '/root/index.js',
+              path: '/root/index.js',
+              dependencies: ['bar'],
+              isAsset: false,
+              isAsset_DEPRECATED: false,
+              isJSON: false,
+              isPolyfill: false,
+              resolution: undefined,
+            },
+            {
+              id: '/root/node_modules/bar.js',
+              path: '/root/node_modules/bar.js',
+              dependencies: [],
+              isAsset: false,
+              isAsset_DEPRECATED: false,
+              isJSON: false,
+              isPolyfill: false,
+              resolution: undefined,
+            },
+          ]);
+      });
+    });
+
+    pit('should be able to resolve paths within `extraNodeModules`', () => {
+      const root = '/root';
+      fs.__setMockFilesystem({
+        [root.slice(1)]: {
+          'index.js': 'require("bar/lib/foo")',
+          'provides-bar': {
+            'package.json': '{}',
+            'lib': {'foo.js': ''},
+          },
+        },
+      });
+
+      var dgraph = new DependencyGraph({
+        ...defaults,
+        roots: [root],
+        extraNodeModules: {
+          'bar': root + '/provides-bar',
+        },
+      });
+
+      return getOrderedDependenciesAsJSON(dgraph, '/root/index.js').then(deps => {
+        expect(deps)
+          .toEqual([
+            {
+              id: '/root/index.js',
+              path: '/root/index.js',
+              dependencies: ['bar/lib/foo'],
+              isAsset: false,
+              isAsset_DEPRECATED: false,
+              isJSON: false,
+              isPolyfill: false,
+              resolution: undefined,
+            },
+            {
+              id: '/root/provides-bar/lib/foo.js',
+              path: '/root/provides-bar/lib/foo.js',
+              dependencies: [],
+              isAsset: false,
+              isAsset_DEPRECATED: false,
+              isJSON: false,
+              isPolyfill: false,
+              resolution: undefined,
+            },
+          ]);
+      });
+    });
   });
 
   describe('get sync dependencies (win32)', function() {
@@ -3308,6 +3462,7 @@ describe('DependencyGraph', function() {
 
       var dgraph = new DependencyGraph({
         ...defaults,
+        platforms: ['ios', 'android', 'web'],
         roots: [root],
       });
       return getOrderedDependenciesAsJSON(dgraph, '/root/index.ios.js').then(function(deps) {

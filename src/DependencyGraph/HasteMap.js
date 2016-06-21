@@ -21,12 +21,14 @@ class HasteMap {
     moduleCache,
     preferNativePlatform,
     helpers,
+    platforms,
   }) {
     this._extensions = extensions;
     this._fastfs = fastfs;
     this._moduleCache = moduleCache;
     this._preferNativePlatform = preferNativePlatform;
     this._helpers = helpers;
+    this._platforms = platforms;
   }
 
   build() {
@@ -125,7 +127,7 @@ class HasteMap {
     }
 
     const moduleMap = this._map[name];
-    const modulePlatform = getPlatformExtension(mod.path) || GENERIC_PLATFORM;
+    const modulePlatform = getPlatformExtension(mod.path, this._platforms) || GENERIC_PLATFORM;
     const existingModule = moduleMap[modulePlatform];
 
     if (existingModule && existingModule.path !== mod.path) {
@@ -134,7 +136,7 @@ class HasteMap {
         `  Duplicate module name: ${name}\n` +
         `  Paths: ${mod.path} collides with ${existingModule.path}\n\n` +
         `This error is caused by a @providesModule declaration ` +
-        `with the same name accross two different files.`
+        `with the same name across two different files.`
       );
     }
 
