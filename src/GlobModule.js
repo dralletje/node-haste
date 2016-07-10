@@ -8,8 +8,9 @@
  */
 'use strict';
 
-const path = require('./fastpath');
 const Module = require('./Module');
+
+RegExp.escape = s => s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
 
 class GlobModule extends Module {
 
@@ -46,7 +47,7 @@ class GlobModule extends Module {
   read(transformOptions) {
     const [, dir, file] = this.path.match(/(.*)\/([^/]+)$/);
     const pattern = '^' + RegExp.escape(file).replace('\\*', '([^/.]+)') + '$';
-    const filenamePattern = /\/([a-zA-Z][^/.]*).[^/.]+$/
+    const filenamePattern = /\/([a-zA-Z][^/.]*).[^/.]+$/;
     const matches = this._fastfs.matches(dir, pattern);
     const dependencies = matches.map(x => {
       return '.' + x.slice(dir.length);
@@ -54,8 +55,9 @@ class GlobModule extends Module {
 
     const source = dependencies.map(name => {
       const match = name.match(filenamePattern);
+      const identifier = match[1].replace(/[ .-]/g, '');
       if (match) {
-        return `import ${match[1]} from '${name}';\nexport {${match[1]}}\n`;
+        return `import ${identifier} from '${name}';\nexport {${identifier}}\n`;
       } else {
         return ``;
       }
