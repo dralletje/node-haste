@@ -44,7 +44,7 @@ class DependencyGraphHelpers {
   }
 
   isGlob(file) {
-    return file.indexOf('*') !== -1;
+    return file.indexOf('glob!') === 0;
   }
 }
 

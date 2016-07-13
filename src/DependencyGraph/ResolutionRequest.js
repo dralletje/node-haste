@@ -381,7 +381,18 @@ class ResolutionRequest {
 
   _loadAsFile(potentialModulePath, fromModule, toModule) {
     return Promise.resolve().then(() => {
-      if (this._helpers.isAssetFile(potentialModulePath) && !this._helpers.isGlob(potentialModulePath)) {
+      if (this._helpers.isGlob(toModule)) {
+        const basedir = path.dirname(fromModule.path);
+        const modulepath = toModule.slice('glob!'.length);
+        const filename = path.join(basedir, modulepath);
+        return this._moduleCache.getGlobModule(filename);
+      } else {
+        if (toModule.indexOf('*') !== -1) {
+          throw new Error(`You most likely forgot to prefix the file '${toModule}' with 'glob!' in ${fromModule.path}`);
+        }
+      }
+
+      if (this._helpers.isAssetFile(potentialModulePath)) {
         const dirname = path.dirname(potentialModulePath);
         if (!this._fastfs.dirExists(dirname)) {
           throw new UnableToResolveError(
@@ -409,10 +420,6 @@ class ResolutionRequest {
         if (assetFile) {
           return this._moduleCache.getAssetModule(assetFile);
         }
-      }
-
-      if (this._helpers.isGlob(potentialModulePath)) {
-        return this._moduleCache.getGlobModule(potentialModulePath);
       }
 
       let file;
